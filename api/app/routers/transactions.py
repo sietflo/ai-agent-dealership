@@ -2,7 +2,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List
-
+from app import models, auth
 from ..database import get_db
 from ..models import Transaction, Car, Customer, Salesman
 from ..schemas import TransactionCreate, TransactionResponse
@@ -12,13 +12,18 @@ router = APIRouter(prefix="/transactions", tags=["Transactions"])
 
 # 1. LIST ALL TRANSACTIONS
 @router.get("/", response_model=List[TransactionResponse])
-def list_transactions(db: Session = Depends(get_db)):
+def list_transactions(
+        db: Session = Depends(get_db),
+        current_user: models.User = Depends(auth.get_current_user)):
     """Fetch all completed sales transactions with joined car, customer, and salesman data."""
     return db.query(Transaction).all()
 
 # 2. GET A SINGLE TRANSACTION BY ID
 @router.get("/{transaction_id}", response_model=TransactionResponse)
-def get_transaction(transaction_id: int, db: Session = Depends(get_db)):
+def get_transaction(
+        transaction_id: int,
+        db: Session = Depends(get_db),
+        current_user: models.User = Depends(auth.get_current_user)):
     """Fetch details of a specific transaction by its ID."""
     txn = db.query(Transaction).filter(Transaction.id == transaction_id).first()
     if not txn:
@@ -26,7 +31,10 @@ def get_transaction(transaction_id: int, db: Session = Depends(get_db)):
     return txn
 
 @router.post("/", response_model=TransactionResponse, status_code=status.HTTP_201_CREATED)
-def create_transaction(txn_data: TransactionCreate, db: Session = Depends(get_db)):
+def create_transaction(
+        txn_data: TransactionCreate,
+        db: Session = Depends(get_db),
+        current_user: models.User = Depends(auth.get_current_user)):
     """
     Log a new vehicle sale transaction.
     Checks foreign key existence and marks the car status as 'SOLD'.

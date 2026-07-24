@@ -19,3 +19,7 @@ __pycache__/
 # Testing & Coverage
 .pytest_cache/
 .coverage
+
+*.pyc
+agent/logs/
+*.log

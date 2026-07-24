@@ -14,6 +14,8 @@ ALLOWED_TOOLS = {
     "api_search_salesmen", "api_get_salesman_stats", "api_create_salesman",
     # Transactions
     "api_list_transactions", "api_get_transaction_receipt", "api_create_transaction",
+    # Updating
+    "api_update_car", "api_update_customer", "api_update_salesman"
 }
 
 def assert_tool_allowed(tool_name: str) -> None:

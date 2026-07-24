@@ -4,7 +4,8 @@ import json
 import os
 import sys
 from dotenv import load_dotenv
-
+import warnings
+from typing import Optional
 load_dotenv()
 
 from guardrails import GuardrailError, assert_tool_allowed, max_steps_instruction
@@ -17,26 +18,37 @@ def _reset_steps(*args, **kwargs) -> None:
     global _step_counter
     _step_counter = 0
 
+import os
+import json
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
+
+_tool_executor = ThreadPoolExecutor(max_workers=4)
+
+
 def _wrap_tool(name: str, fn):
     def inner(**kwargs):
         global _step_counter
-        assert_tool_allowed(name)   # guardrail violations still raise — that's intentional
+        assert_tool_allowed(name)
         _step_counter += 1
         if _step_counter > int(os.getenv("MAX_AGENT_STEPS", "12")):
             raise GuardrailError("Max agent steps exceeded")
+
+        timeout_seconds = int(os.getenv("TOOL_TIMEOUT_SECONDS", "10"))
+        future = _tool_executor.submit(fn, **kwargs)
         try:
-            result = fn(**kwargs)
+            result = future.result(timeout=timeout_seconds)
             log_step(_step_counter, name, kwargs, result)
             return json.dumps(result, ensure_ascii=False) if not isinstance(result, str) else result
+        except FutureTimeoutError:
+            error_msg = f"Tool '{name}' timed out after {timeout_seconds}s"
+            log_step(_step_counter, name, kwargs, None, error=error_msg)
+            return json.dumps({"error": error_msg}, ensure_ascii=False)
         except Exception as e:
             log_step(_step_counter, name, kwargs, None, error=str(e))
-            # Return the error as a tool result instead of crashing the run,
-            # so the LLM can see it and decide how to recover.
             return json.dumps({"error": str(e)}, ensure_ascii=False)
 
     inner.__name__ = name
     return inner
-
 
 def build_agent():
     try:
@@ -49,7 +61,8 @@ def build_agent():
         api_search_cars, api_get_car_details, api_create_car,
         api_search_customers, api_get_customer_history, api_create_customer,
         api_search_salesmen, api_get_salesman_stats, api_create_salesman,
-        api_list_transactions, api_get_transaction_receipt, api_create_transaction
+        api_list_transactions, api_get_transaction_receipt, api_create_transaction,
+        api_update_car, api_update_customer, api_update_salesman
     )
 
     def search_cars(status: str = None) -> str:
@@ -106,11 +119,31 @@ def build_agent():
             car_id=car_id, customer_id=customer_id, salesman_id=salesman_id, sale_price=sale_price
         )
 
+    def update_car(car_id: int, make: Optional[str] = None, model: Optional[str] = None, price: Optional[float] = None, status: Optional[str] = None) -> str:
+        """Update a car's make, model, price, or status."""
+        return _wrap_tool("api_update_car", api_update_car)(car_id=car_id, make=make, model=model, price=price,
+                                                            status=status)
+
+    def update_customer(customer_id: int, first_name: Optional[str] = None, last_name: Optional[str] = None, email: Optional[str] = None,
+                        phone: Optional[str] = None) -> str:
+        """Update a customer's name, email, or phone number."""
+        return _wrap_tool("api_update_customer", api_update_customer)(
+            customer_id=customer_id, first_name=first_name, last_name=last_name, email=email, phone=phone
+        )
+
+    def update_salesman(salesman_id: int, first_name: Optional[str] = None, last_name: Optional[str] = None, email: Optional[str] = None,
+                        phone: Optional[str] = None) -> str:
+        """Update a salesman's name, email, or phone number."""
+        return _wrap_tool("api_update_salesman", api_update_salesman)(
+            salesman_id=salesman_id, first_name=first_name, last_name=last_name, email=email, phone=phone
+        )
+
     tools = [
         search_cars, get_car_details, create_car,
         search_customers, get_customer_history, create_customer,
         search_salesmen, get_salesman_stats, create_salesman,
-        list_transactions, get_transaction_receipt, create_transaction
+        list_transactions, get_transaction_receipt, create_transaction,
+        update_car, update_salesman, update_customer
     ]
 
     instructions = (
@@ -142,18 +175,21 @@ def build_agent():
             "ask them for it before calling the create tool.\n\n"
 
             "GENERAL:\n"
-            "Never fabricate IDs, prices, or other data not returned by a tool call. "
+            "Never fabricate IDs, prices, employees, clients or other data not returned by a tool call. "
             "If a tool call fails for a reason other than a duplicate record, report the error to the user "
             "plainly instead of retrying blindly."
             + max_steps_instruction()
     )
+
+    def _on_before_agent(callback_context):
+        _reset_steps()
 
     return Agent(
         name="dealership_agent",
         model="gemini-2.5-flash",
         instruction=instructions,
         tools=tools,
-        before_agent_callback= _reset_steps
+        before_agent_callback= _on_before_agent,
     )
 
 

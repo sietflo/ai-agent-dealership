@@ -12,6 +12,10 @@ def api_create_car(make: str, model: str, year: int, price: float, vin: str) -> 
     payload = {"make": make, "model": model, "year": year, "price": price, "vin": vin}
     return api_client.request("POST", "/cars/", json=payload)
 
+def api_update_car(car_id: int, make: str = None, model: str = None, price: float = None, status: str = None) -> dict:
+    payload = {k: v for k, v in {"make": make, "model": model, "price": price, "status": status}.items() if v is not None}
+    return api_client.request("PATCH", f"/cars/{car_id}", json=payload)
+
 # --- CUSTOMERS ---
 def api_search_customers(query: str = None) -> list:
     params = {"query": query} if query else {}
@@ -23,6 +27,10 @@ def api_get_customer_history(customer_id: int) -> dict:
 def api_create_customer(first_name: str, last_name: str, email: str, phone: str = None) -> dict:
     payload = {"first_name": first_name, "last_name": last_name, "email": email, "phone": phone}
     return api_client.request("POST", "/customers/", json=payload)
+
+def api_update_customer(customer_id: int, first_name: str = None, last_name: str = None, email: str = None, phone: str = None) -> dict:
+    payload = {k: v for k, v in {"first_name": first_name, "last_name": last_name, "email": email, "phone": phone}.items() if v is not None}
+    return api_client.request("PATCH", f"/customers/{customer_id}", json=payload)
 # --- SALESMEN ---
 def api_search_salesmen(name: str = None) -> list:
     params = {"name": name} if name else {}
@@ -34,6 +42,11 @@ def api_get_salesman_stats(salesman_id: int) -> dict:
 def api_create_salesman(first_name: str, last_name: str, email: str, phone: str=None) -> dict:
     payload = {"first_name": first_name, "last_name": last_name, "email": email, "phone": phone}
     return api_client.request("POST", "/salesmen/", json=payload)
+
+def api_update_salesman(salesman_id: int, first_name: str = None, last_name: str = None, email: str = None, phone: str = None) -> dict:
+    payload = {k: v for k, v in {"first_name": first_name, "last_name": last_name, "email": email, "phone": phone}.items() if v is not None}
+    return api_client.request("PATCH", f"/salesmen/{salesman_id}", json=payload)
+
 # --- TRANSACTIONS ---
 def api_list_transactions(customer_id: int = None) -> list:
     params = {"customer_id": customer_id} if customer_id else {}

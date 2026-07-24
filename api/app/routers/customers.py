@@ -1,7 +1,7 @@
 #app/routers/customers.py
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Optional
 from app import models, auth
 from ..database import  get_db
 from ..models import Customer
@@ -10,12 +10,27 @@ from ..schemas import CustomerCreate, CustomerResponse, CustomerUpdate
 router = APIRouter(prefix="/customers", tags=["Customers"])
 
 # 1. LIST ALL CUSTOMERS
+# 1. SEARCH OR LIST ALL CUSTOMERS
 @router.get("/", response_model=List[CustomerResponse])
 def list_customers(
-        db:Session = Depends(get_db),
+        query: Optional[str] = Query(None, description="Search by name or email"),
+        db: Session = Depends(get_db),
         current_user: models.User = Depends(auth.get_current_user)):
-    """Fetch all customers from the database."""
-    return db.query(Customer).all()
+    """Fetch customers. Supports multi-word full name and email searches."""
+    db_query = db.query(Customer)
+
+    if query and query.strip():
+        search_terms = query.strip().split()
+        for term in search_terms:
+            t = f"%{term}%"
+            # Each word in the query must match first_name, last_name, or email
+            db_query = db_query.filter(
+                (Customer.first_name.ilike(t)) |
+                (Customer.last_name.ilike(t)) |
+                (Customer.email.ilike(t))
+            )
+
+    return db_query.all()
 
 # 2. GET A SINGLE CUSTOMER BY ID
 @router.get("/{customer_id}", response_model=CustomerResponse)

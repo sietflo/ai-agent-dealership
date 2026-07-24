@@ -6,10 +6,11 @@ import sys
 from dotenv import load_dotenv
 import warnings
 from typing import Optional
+
 load_dotenv()
 
-from guardrails import GuardrailError, assert_tool_allowed, max_steps_instruction
-from tracing import log_step, reset_log
+from .guardrails import GuardrailError, assert_tool_allowed, max_steps_instruction
+from .tracing import log_step, reset_log
 
 _step_counter = 0
 
@@ -17,6 +18,7 @@ _step_counter = 0
 def _reset_steps(*args, **kwargs) -> None:
     global _step_counter
     _step_counter = 0
+
 
 import os
 import json
@@ -50,6 +52,7 @@ def _wrap_tool(name: str, fn):
     inner.__name__ = name
     return inner
 
+
 def build_agent():
     try:
         from google.adk import Agent
@@ -65,9 +68,10 @@ def build_agent():
         api_update_car, api_update_customer, api_update_salesman
     )
 
-    def search_cars(status: str = None) -> str:
-        """Search or list cars filtered by status (AVAILABLE, SOLD)."""
-        return _wrap_tool("api_search_cars", api_search_cars)(status=status)
+    def search_cars(status: str = None, query: str = None) -> str:
+        """Search available or sold cars in inventory.
+        Use 'query' to filter by vehicle make, model, or VIN (e.g., query='Mustang', status='AVAILABLE')."""
+        return _wrap_tool("api_search_cars", api_search_cars)(status=status, query=query)
 
     def get_car_details(car_id: int) -> str:
         """Get full details of a specific car by ID."""
@@ -91,9 +95,9 @@ def build_agent():
             first_name=first_name, last_name=last_name, email=email, phone=phone
         )
 
-    def search_salesmen(name: str = None) -> str:
-        """List or search salesmen by name."""
-        return _wrap_tool("api_search_salesmen", api_search_salesmen)(name=name)
+    def search_salesmen(query: str = None) -> str:
+        """Search salesmen by name or email (e.g. query='Bob')."""
+        return _wrap_tool("api_search_salesmen", api_search_salesmen)(query=query)
 
     def get_salesman_stats(salesman_id: int) -> str:
         """Get salesman profile by ID."""
@@ -102,7 +106,7 @@ def build_agent():
     def create_salesman(first_name: str, last_name: str, email: str, phone: str = None) -> str:
         """Create a new salesman profile."""
         return _wrap_tool("api_create_salesman", api_create_salesman)(
-            first_name=first_name, last_name=last_name, email=email, phone = phone
+            first_name=first_name, last_name=last_name, email=email, phone=phone
         )
 
     def list_transactions(customer_id: int = None) -> str:
@@ -114,24 +118,28 @@ def build_agent():
         return _wrap_tool("api_get_transaction_receipt", api_get_transaction_receipt)(transaction_id=transaction_id)
 
     def create_transaction(car_id: int, customer_id: int, salesman_id: int, sale_price: float) -> str:
-        """Finalize a car sale transaction. Requires car_id, customer_id, salesman_id, and sale_price."""
+        """Finalize a car sale transaction. Returns full transaction receipt details (IDs, customer, car, salesman).
+        Use the returned dictionary directly to present the receipt to the user without making additional tool calls."""
         return _wrap_tool("api_create_transaction", api_create_transaction)(
             car_id=car_id, customer_id=customer_id, salesman_id=salesman_id, sale_price=sale_price
         )
 
-    def update_car(car_id: int, make: Optional[str] = None, model: Optional[str] = None, price: Optional[float] = None, status: Optional[str] = None) -> str:
+    def update_car(car_id: int, make: Optional[str] = None, model: Optional[str] = None, price: Optional[float] = None,
+                   status: Optional[str] = None) -> str:
         """Update a car's make, model, price, or status."""
         return _wrap_tool("api_update_car", api_update_car)(car_id=car_id, make=make, model=model, price=price,
                                                             status=status)
 
-    def update_customer(customer_id: int, first_name: Optional[str] = None, last_name: Optional[str] = None, email: Optional[str] = None,
+    def update_customer(customer_id: int, first_name: Optional[str] = None, last_name: Optional[str] = None,
+                        email: Optional[str] = None,
                         phone: Optional[str] = None) -> str:
         """Update a customer's name, email, or phone number."""
         return _wrap_tool("api_update_customer", api_update_customer)(
             customer_id=customer_id, first_name=first_name, last_name=last_name, email=email, phone=phone
         )
 
-    def update_salesman(salesman_id: int, first_name: Optional[str] = None, last_name: Optional[str] = None, email: Optional[str] = None,
+    def update_salesman(salesman_id: int, first_name: Optional[str] = None, last_name: Optional[str] = None,
+                        email: Optional[str] = None,
                         phone: Optional[str] = None) -> str:
         """Update a salesman's name, email, or phone number."""
         return _wrap_tool("api_update_salesman", api_update_salesman)(
@@ -157,13 +165,24 @@ def build_agent():
 
             "SELLING A CAR (full deal):\n"
             "1. Find or onboard the customer.\n"
-            "2. Find the specific available car requested (or the cheapest/first available if unspecified).\n"
+            "2. Find the requested car. If multiple matching units exist (even if they are the same make/model/year), "
+            "   stop and ask the user to select the specific vehicle by VIN/Stock # before proceeding.\n"
             "3. Find or create the salesman.\n"
             "4. Finalize the transaction using the car_id, customer_id, and salesman_id from the steps above.\n\n"
 
+            "CAR STATUS CHECK:\n"
+            "If a search for a specific car filtered by status='AVAILABLE' returns no results, do not "
+            "conclude the car doesn't exist and do not describe what inventory 'only' contains. First "
+            "re-run search_cars for the same make/model/VIN with no status filter (or status=None) to "
+            "check whether it exists under a different status. If a matching car is found and it is "
+            "marked RESERVED or SOLD, do not automatically sell it or automatically refuse. Tell the "
+            "user its current status and ask them to confirm whether to proceed (e.g. if it was reserved "
+            "specifically for this customer). Only tell the user a car isn't in inventory at all after "
+            "an unfiltered search also returns nothing."
+
             "HANDLING AMBIGUOUS MATCHES:\n"
             "If a search for a customer, car, or salesman returns more than one plausible match, "
-            "do not guess. List the candidates you found and ask the user to clarify which one they mean.\n\n"
+            "do not guess. List the candidates you found and ask the user to clarify which one they mean or want.\n\n"
 
             "HANDLING DUPLICATES:\n"
             "If creating a customer or salesman fails because a record with that email already exists, "
@@ -172,7 +191,11 @@ def build_agent():
 
             "CAR CREATION:\n"
             "Never invent or guess a VIN. If the user wants to add a car and hasn't provided a VIN, "
-            "ask them for it before calling the create tool.\n\n"
+            "ask them for it before calling the create tool. Before creating a car, always run a fresh "
+            "search_cars(query=<VIN>) check for that exact VIN, even if an earlier broader search "
+            "returned no results — a broad query can miss a car that an exact VIN lookup will find. "
+            "If a car with that VIN already exists, do not create a duplicate: tell the user it already "
+            "exists and use the existing car's ID for whatever the user wanted to do next (e.g. selling it).\n\n"
 
             "GENERAL:\n"
             "Never fabricate IDs, prices, employees, clients or other data not returned by a tool call. "
@@ -189,16 +212,19 @@ def build_agent():
         model="gemini-2.5-flash",
         instruction=instructions,
         tools=tools,
-        before_agent_callback= _on_before_agent,
+        before_agent_callback=_on_before_agent,
     )
 
 
 def run_once(agent, prompt: str, conversation: list | None):
     from google.adk import Runner
-    _reset_steps()
-    runner = Runner(agent=agent)
+    from google.adk.sessions import InMemorySessionService
 
-    # ADK handles input as a direct prompt string or session history
+    _reset_steps()
+
+    session_service = InMemorySessionService()
+    runner = Runner(agent=agent, session_service=session_service)
+
     input_text = prompt
     if conversation:
         input_text = "\n".join([f"{msg['role']}: {msg['content']}" for msg in conversation]) + f"\nuser: {prompt}"

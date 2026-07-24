@@ -1,8 +1,12 @@
 from ..client import api_client
 
 # --- CARS ---
-def api_search_cars(status: str = None) -> list:
-    params = {"status": status} if status else {}
+def api_search_cars(status: str = None, query: str = None) -> list:
+    params = {}
+    if status:
+        params["status"] = status
+    if query:
+        params["query"] = query
     return api_client.request("GET", "/cars/", params=params)
 
 def api_get_car_details(car_id: int) -> dict:
@@ -32,8 +36,8 @@ def api_update_customer(customer_id: int, first_name: str = None, last_name: str
     payload = {k: v for k, v in {"first_name": first_name, "last_name": last_name, "email": email, "phone": phone}.items() if v is not None}
     return api_client.request("PATCH", f"/customers/{customer_id}", json=payload)
 # --- SALESMEN ---
-def api_search_salesmen(name: str = None) -> list:
-    params = {"name": name} if name else {}
+def api_search_salesmen(query: str = None) -> list:
+    params = {"query": query} if query else {}
     return api_client.request("GET", "/salesmen/", params=params)
 
 def api_get_salesman_stats(salesman_id: int) -> dict:

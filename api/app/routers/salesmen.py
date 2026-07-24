@@ -1,7 +1,7 @@
 #app/routers/salesmen.py
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Optional
 from app import models, auth
 from ..database import  get_db
 from ..models import Salesman
@@ -11,11 +11,25 @@ router = APIRouter(prefix="/salesmen", tags=["salesmen"])
 
 # 1. LIST ALL Salesmen
 @router.get("/", response_model=List[SalesmanResponse])
-def list_Salesmans(
-        db:Session = Depends(get_db),
+def list_salesmen(
+        query: Optional[str] = Query(None, description="Search salesman by name or email"),
+        db: Session = Depends(get_db),
         current_user: models.User = Depends(auth.get_current_user)):
-    """Fetch all Salesmen from the database."""
-    return db.query(Salesman).all()
+    """Fetch all Salesmen or filter by multi-word name or email if query is provided."""
+    db_query = db.query(Salesman)
+
+    if query and query.strip():
+        search_terms = query.strip().split()
+        for term in search_terms:
+            t = f"%{term}%"
+            # Every word in the query must match first_name, last_name, or email
+            db_query = db_query.filter(
+                (Salesman.first_name.ilike(t)) |
+                (Salesman.last_name.ilike(t)) |
+                (Salesman.email.ilike(t))
+            )
+
+    return db_query.all()
 
 # 2. GET A SINGLE Salesman BY ID
 @router.get("/{salesman_id}", response_model=SalesmanResponse)

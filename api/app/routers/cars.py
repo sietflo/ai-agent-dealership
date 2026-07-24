@@ -1,7 +1,7 @@
 # app/routers/cars.py
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
-from typing import List, Optional
+from typing import Optional, List
 from app import models, auth
 from ..database import get_db
 from ..models import Car
@@ -13,15 +13,28 @@ router = APIRouter(prefix="/cars", tags=["Cars"])
 # 1. GET ALL CARS (Protected, with optional status filter)
 @router.get("/", response_model=List[CarResponse])
 def list_cars(
-    status: Optional[str] = None,
+    status: Optional[str] = Query(None, description="Filter by status (AVAILABLE, RESERVED, SOLD)"),
+    query: Optional[str] = Query(None, description="Search by make, model, or VIN"),
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user)
 ):
-    query = db.query(Car)
-    if status:
-        query = query.filter(Car.status.ilike(status))
-    return query.all()
+    db_query = db.query(Car)
 
+    if status and status.strip():
+        db_query = db_query.filter(Car.status.ilike(status.strip()))
+
+    if query and query.strip():
+        search_terms = query.strip().split()
+        for term in search_terms:
+            t = f"%{term}%"
+            # Each word in the query must match make, model, or VIN
+            db_query = db_query.filter(
+                (Car.make.ilike(t)) |
+                (Car.model.ilike(t)) |
+                (Car.vin.ilike(t))
+            )
+
+    return db_query.all()
 
 # 2. GET SINGLE CAR BY ID (Protected)
 @router.get("/{car_id}", response_model=CarResponse)

@@ -11,7 +11,7 @@ class SalesmanBase(BaseModel):
     first_name: str
     last_name: str
     email: EmailStr
-
+    phone: Optional[str] = None
 
 class SalesmanCreate(SalesmanBase):
     pass
@@ -37,6 +37,8 @@ class CustomerBase(BaseModel):
     first_name: str
     last_name: str
     email: EmailStr
+    phone: Optional[str] = None
+
 
 
 class CustomerCreate(CustomerBase):
@@ -61,7 +63,9 @@ class CarBase(BaseModel):
     vin: str = Field(..., min_length=17, max_length=17, description="17-character VIN")
     make: str
     model: str
+    year: int = Field(..., ge=1900, le=2100)
     price: float = Field(..., gt=0, description="Price must be greater than 0")
+    status: str = "AVAILABLE"
 
 
 class CarCreate(CarBase):

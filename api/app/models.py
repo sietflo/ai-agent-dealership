@@ -21,6 +21,7 @@ class Salesman(Base):
     first_name = Column(String, nullable=False)
     last_name = Column(String, nullable=False)
     email = Column(String, unique=True, nullable=False)
+    phone = Column(String, nullable=True)
 
     transactions = relationship("Transaction", back_populates="salesman")
 
@@ -31,6 +32,7 @@ class Customer(Base):
     first_name = Column(String, nullable=False)
     last_name = Column(String, nullable=False)
     email = Column(String, unique=True, nullable=False)
+    phone = Column(String, nullable=True)
 
     transactions = relationship("Transaction", back_populates="customer")
 
@@ -41,8 +43,9 @@ class Car(Base):
     vin = Column(String, unique=True, nullable=False)
     make = Column(String, nullable=False)
     model = Column(String, nullable=False)
+    year = Column(Integer, nullable=False)
     price = Column(Numeric(10, 2), nullable=False)
-    status = Column(String, default="AVAILABLE") # AVAILABLE, SOLD
+    status = Column(String, default="AVAILABLE")
 
     transaction = relationship("Transaction", back_populates="car", uselist=False)
 

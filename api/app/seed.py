@@ -30,7 +30,7 @@ def seed_data():
         car1 = Car(vin="1HGCR2F83HA123456", make="Toyota", model="Camry", year=2022, price=24500.0, status="SOLD")
         car2 = Car(vin="2T1BR3HE4KC654321", make="Honda", model="Civic", year=2023, price=26000.0, status="AVAILABLE")
         car3 = Car(vin="1FA6P8CF0R5789012", make="Ford", model="Mustang", year=2024, price=35000.0, status="AVAILABLE")
-        car4 = Car(vin="5YJ3E1EA7KF345678", make="Tesla", model="Model 3", year=2023, price=42000.0, status="RESERVED")
+        car4 = Car(vin="5YJ3E1EA7KF345678", make="Tesla", model="Model 3", year=2023, price=42000.0, status="AVAILABLE")
         db.add_all([car1, car2, car3, car4])
         db.commit()
 

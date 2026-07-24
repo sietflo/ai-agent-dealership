@@ -10,13 +10,20 @@ from ..schemas import SalesmanCreate, SalesmanResponse, SalesmanUpdate
 router = APIRouter(prefix="/salesmen", tags=["salesmen"])
 
 # 1. LIST ALL Salesmen
-@router.get("/", response_model=List[SalesmanResponse])
-def list_Salesmans(
-        db:Session = Depends(get_db),
-        current_user: models.User = Depends(auth.get_current_user)):
-    """Fetch all Salesmen from the database."""
-    return db.query(Salesman).all()
+from typing import List, Optional
 
+@router.get("/", response_model=List[SalesmanResponse])
+def list_salesmen(
+        name: Optional[str] = None,
+        db: Session = Depends(get_db),
+        current_user: models.User = Depends(auth.get_current_user)):
+    """Fetch salesmen, optionally filtered by first or last name."""
+    query = db.query(Salesman)
+    if name:
+        query = query.filter(
+            (Salesman.first_name.ilike(f"%{name}%")) | (Salesman.last_name.ilike(f"%{name}%"))
+        )
+    return query.all()
 # 2. GET A SINGLE Salesman BY ID
 @router.get("/{salesman_id}", response_model=SalesmanResponse)
 def get_salesman(

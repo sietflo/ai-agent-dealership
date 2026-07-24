@@ -10,12 +10,22 @@ from ..schemas import CustomerCreate, CustomerResponse, CustomerUpdate
 router = APIRouter(prefix="/customers", tags=["Customers"])
 
 # 1. LIST ALL CUSTOMERS
+from typing import List, Optional
+
 @router.get("/", response_model=List[CustomerResponse])
 def list_customers(
-        db:Session = Depends(get_db),
+        query: Optional[str] = None,
+        db: Session = Depends(get_db),
         current_user: models.User = Depends(auth.get_current_user)):
-    """Fetch all customers from the database."""
-    return db.query(Customer).all()
+    """Fetch customers, optionally filtered by name or email."""
+    q = db.query(Customer)
+    if query:
+        q = q.filter(
+            (Customer.first_name.ilike(f"%{query}%")) |
+            (Customer.last_name.ilike(f"%{query}%")) |
+            (Customer.email.ilike(f"%{query}%"))
+        )
+    return q.all()
 
 # 2. GET A SINGLE CUSTOMER BY ID
 @router.get("/{customer_id}", response_model=CustomerResponse)

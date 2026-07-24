@@ -17,10 +17,10 @@ class SalesmanCreate(SalesmanBase):
     pass
 
 class SalesmanUpdate(BaseModel):
-    """PATCH /salesmen/{id}"""
     first_name: Optional[str] = None
     last_name: Optional[str] = None
     email: Optional[EmailStr] = None
+    phone: Optional[str] = None
 
 class SalesmanResponse(SalesmanBase):
     id: int
@@ -45,10 +45,10 @@ class CustomerCreate(CustomerBase):
     pass
 
 class CustomerUpdate(BaseModel):
-    """PATCH /customers/{id}"""
     first_name: Optional[str] = None
     last_name: Optional[str] = None
     email: Optional[EmailStr] = None
+    phone: Optional[str] = None
 
 class CustomerResponse(CustomerBase):
     id: int
